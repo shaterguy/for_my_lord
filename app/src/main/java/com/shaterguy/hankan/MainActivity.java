@@ -195,6 +195,8 @@ public class MainActivity extends Activity {
             timerButton.setText("계속하기");
             return;
         }
+        remainingMs = TimerPolicy.durationForStart(remainingMs, FOCUS_MS);
+        updateTimer();
         timerRunning = true;
         timerButton.setText("잠시 멈춤");
         timer = new CountDownTimer(remainingMs, 1000) {
