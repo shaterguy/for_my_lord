@@ -28,7 +28,7 @@ gradle assembleRelease
 
 ## 서명
 
-현재 개인 배포판은 설치 가능한 APK 제공을 위해 Android 기본 debug signingConfig를 사용합니다. 앱 데이터는 외부로 전송되지 않습니다.
+현재 최초 배포판은 설치 가능한 APK 제공을 위해 Android 기본 debug signingConfig를 사용합니다. 공개 저장소에는 개인 서명키를 포함하지 않습니다. 앱 데이터는 Android 백업에서도 제외되며 외부로 전송되지 않습니다.
 
 ## 라이선스
 
