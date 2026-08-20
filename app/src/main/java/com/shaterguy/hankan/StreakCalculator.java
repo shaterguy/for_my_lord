@@ -7,7 +7,7 @@ public final class StreakCalculator {
     private StreakCalculator() {}
 
     public static int nextStreak(String lastCompletedDate, LocalDate today, int current) {
-        if (lastCompletedDate == null || lastCompletedDate.isBlank()) return 1;
+        if (lastCompletedDate == null || lastCompletedDate.trim().isEmpty()) return 1;
         LocalDate previous = LocalDate.parse(lastCompletedDate);
         long gap = ChronoUnit.DAYS.between(previous, today);
         if (gap == 0) return Math.max(1, current);

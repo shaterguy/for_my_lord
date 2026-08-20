@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="hankan_background">#F7F5FC</color>
+    <color name="hankan_card">#FFFFFF</color>
+    <color name="hankan_surface_alt">#F1ECF8</color>
+    <color name="hankan_primary">#6750A4</color>
+    <color name="hankan_primary_container">#EADDFF</color>
+    <color name="hankan_on_primary">#FFFFFF</color>
+    <color name="hankan_ink">#24232A</color>
+    <color name="hankan_muted">#676570</color>
+    <color name="hankan_outline">#DED9E4</color>
+    <color name="hankan_success">#2E6B46</color>
+    <color name="hankan_success_container">#E0F4E8</color>
+</resources>
