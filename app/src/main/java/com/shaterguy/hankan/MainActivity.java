@@ -592,14 +592,11 @@ public class MainActivity extends Activity {
         boolean completed = store.isCompleted(date);
         int count = store.getFocusCount(date);
         int minutes = store.getFocusMinutes(date);
-        String note = store.getNote(date).trim();
-
         StringBuilder summary = new StringBuilder();
         summary.append("한칸 · ").append(LocalDate.now().format(HEADER_DATE)).append('\n');
         summary.append(completed ? "✓ " : "• ");
         summary.append(task.isEmpty() ? "오늘의 한 칸은 아직 비어 있습니다." : task).append('\n');
         summary.append("집중 ").append(count).append("회 · ").append(minutes).append("분");
-        if (!note.isEmpty()) summary.append("\n메모: ").append(note);
 
         Intent intent = new Intent(Intent.ACTION_SEND);
         intent.setType("text/plain");

@@ -3,7 +3,6 @@ name: Android CI
 on:
   push:
     branches: ["main", "v*-dev*", "v*-rc*"]
-    tags: ["v*"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -23,49 +22,86 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
-      - name: Test
-        run: gradle testReleaseUnitTest --stacktrace
-      - name: Build installable release APK
-        run: gradle assembleRelease --stacktrace
-      - name: Verify APK
+      - name: Test DEV and unsigned release logic
+        run: gradle testDebugUnitTest testUnsignedReleaseUnitTest --stacktrace
+      - name: Build isolated DEV APK
+        run: gradle assembleDebug --stacktrace
+      - name: Build unsigned release-verification APK
+        run: gradle assembleUnsignedRelease --stacktrace
+      - name: Verify build artifacts
         run: |
-          test -s app/build/outputs/apk/release/app-release.apk
-          sha256sum app/build/outputs/apk/release/app-release.apk
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          UNSIGNED_APK="$(find app/build/outputs/apk/unsignedRelease -name '*.apk' -type f | head -1)"
+          test -n "$UNSIGNED_APK"
+          test -s "$UNSIGNED_APK"
+          sha256sum app/build/outputs/apk/debug/app-debug.apk "$UNSIGNED_APK"
       - uses: actions/upload-artifact@v4
         with:
-          name: hankan-release-apk
-          path: app/build/outputs/apk/release/app-release.apk
+          name: hankan-dev-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hankan-unsigned-release-apk
+          path: app/build/outputs/apk/unsignedRelease/*.apk
           if-no-files-found: error
 
   release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
         with:
-          name: hankan-release-apk
-          path: release
-      - name: Prepare release assets
+          fetch-depth: 0
+      - name: Verify pre-signed distribution asset
+        id: release_meta
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          ASSET="hankan-v${VERSION}.apk"
-          mv release/app-release.apk "$ASSET"
-          sha256sum "$ASSET" > "$ASSET.sha256"
-          echo "ASSET=$ASSET" >> "$GITHUB_ENV"
+          VERSION="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
+          test -n "$VERSION"
+          ASSET="dist/hankan-v${VERSION}.apk"
+          SHA_FILE="${ASSET}.sha256"
+          test -s "$ASSET"
+          test -s "$SHA_FILE"
+          (cd dist && sha256sum -c "$(basename "$SHA_FILE")")
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          VERIFY_OUT="$($APKSIGNER verify --verbose --print-certs "$ASSET")"
+          printf '%s\n' "$VERIFY_OUT"
+          ACTUAL_CERT="$(printf '%s\n' "$VERIFY_OUT" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr '[:upper:]' '[:lower:]')"
+          EXPECTED_CERT="$(tr -d '[:space:]' < SIGNING_CERT_SHA256.txt | tr '[:upper:]' '[:lower:]')"
+          test -n "$ACTUAL_CERT"
+          test "$ACTUAL_CERT" = "$EXPECTED_CERT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "sha_file=$SHA_FILE" >> "$GITHUB_OUTPUT"
+      - name: Create immutable version tag
+        env:
+          VERSION: ${{ steps.release_meta.outputs.version }}
+        run: |
+          TAG="v${VERSION}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            test "$(git rev-list -n 1 "$TAG")" = "$GITHUB_SHA"
+          else
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "$TAG"
+          fi
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release_meta.outputs.version }}
+          ASSET: ${{ steps.release_meta.outputs.asset }}
+          SHA_FILE: ${{ steps.release_meta.outputs.sha_file }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$ASSET" "$ASSET.sha256" --clobber --repo "$GITHUB_REPOSITORY"
+          TAG="v${VERSION}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" "$SHA_FILE" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$GITHUB_REF_NAME" "$ASSET" "$ASSET.sha256" \
+            gh release create "$TAG" "$ASSET" "$SHA_FILE" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "한칸 ${GITHUB_REF_NAME#v}" \
+              --title "한칸 ${VERSION}" \
               --notes-file RELEASE_NOTES.md
           fi
