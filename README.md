@@ -31,6 +31,8 @@ gradle assembleUnsignedDev assembleUnsignedRelease
 
 `unsignedDev`와 `unsignedRelease`는 외부 영속 키로 서명하기 위한 검증용 중간 산출물입니다. `assembleDev`와 `assembleRelease`는 각 영속 서명 자격증명이 없으면 의도적으로 실패합니다.
 
+CI는 최종 서명 APK가 존재하면 동일 커밋에서 다시 만든 unsigned APK와 내부 payload 해시를 비교하고, 공개 인증서 지문과 SHA-256까지 일치해야 통과합니다.
+
 ## 개인정보·백업
 
 사용 기록과 메모는 앱 전용 `SharedPreferences`에 저장됩니다. 메모는 공유 payload에 포함되지 않습니다. 앱 데이터의 cloud backup과 device-to-device transfer도 제외합니다.
