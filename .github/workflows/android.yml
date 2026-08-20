@@ -28,6 +28,14 @@ jobs:
         run: gradle assembleDebug --stacktrace
       - name: Build unsigned release-verification APK
         run: gradle assembleUnsignedRelease --stacktrace
+      - name: Assert distributable release fails closed without signing credentials
+        run: |
+          if gradle assembleRelease --stacktrace > release-fail.log 2>&1; then
+            cat release-fail.log
+            echo "assembleRelease unexpectedly succeeded without stable signing credentials" >&2
+            exit 1
+          fi
+          grep -F "Release signing credentials are required" release-fail.log
       - name: Verify build artifacts
         run: |
           test -s app/build/outputs/apk/debug/app-debug.apk
