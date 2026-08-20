@@ -1,27 +1,29 @@
-name: SelfRun security rework
+name: SelfRun export Android signing tool
 
 on:
   push:
     branches: ["selfrun-rework-hankan-110"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
+  export:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-      - name: Apply scoped security rework
-        run: python scripts/selfrun_rework_no_workflow.py
-      - name: Commit reworked source
+      - name: Collect apksigner tool
         run: |
-          git config user.name "SHatergUY"
-          git config user.email "108107617+shaterguy@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git commit -m "fix: establish Hankan release signing boundary"
-          git push origin HEAD:selfrun-rework-hankan-110
+          TOOL="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -x "$TOOL"
+          TOOL_DIR="$(dirname "$TOOL")"
+          test -s "$TOOL_DIR/lib/apksigner.jar"
+          mkdir -p export/lib
+          cp "$TOOL" export/apksigner
+          cp "$TOOL_DIR/lib/apksigner.jar" export/lib/apksigner.jar
+          chmod +x export/apksigner
+          "$TOOL" version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apksigner-tool
+          path: export
+          if-no-files-found: error
