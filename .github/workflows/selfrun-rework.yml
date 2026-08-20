@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Apply scoped security rework
-        run: python scripts/selfrun_rework.py
+        run: python scripts/selfrun_rework_no_workflow.py
       - name: Commit reworked source
         run: |
           git config user.name "SHatergUY"
