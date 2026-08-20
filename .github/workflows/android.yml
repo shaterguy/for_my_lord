@@ -36,3 +36,39 @@ jobs:
           name: hankan-release-apk
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: hankan-release-apk
+      - name: Prepare release asset
+        run: mv app-release.apk hankan-v1.0.0.apk
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## 한칸 1.0.0
+
+          오늘 필요한 한 칸만 가볍게 채우는 오프라인 Android 앱입니다.
+
+          - 오늘의 한 가지 저장·완료 및 연속 달성 기록
+          - 일시정지·재개 가능한 10분 집중 타이머
+          - 기기 내부에만 저장되는 빠른 메모
+          - 가족과 함께할 짧은 활동 추천
+          - 로그인·광고·분석 SDK·네트워크 권한 없음
+          - Android 8.0 이상 지원
+
+          최초 설치용 개인 배포판이며 Android 기본 debug signingConfig로 서명되었습니다.
+          EOF
+          if gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v1.0.0 hankan-v1.0.0.apk --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create v1.0.0 hankan-v1.0.0.apk               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --title "한칸 1.0.0"               --notes-file release-notes.md
+          fi
