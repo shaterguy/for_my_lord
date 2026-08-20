@@ -14,7 +14,7 @@ import java.util.Locale;
 
 public class HankanWidgetProvider extends AppWidgetProvider {
     private static final String ACTION_COMPLETE =
-        "com.shaterguy.hankan.action.COMPLETE_TODAY";
+        "com.shaterguy.ddakhana.action.COMPLETE_TODAY";
 
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] appWidgetIds) {
@@ -63,7 +63,7 @@ public class HankanWidgetProvider extends AppWidgetProvider {
         );
         views.setTextViewText(
             R.id.widget_action,
-            completed ? "✓ 오늘 완료" : (task.isEmpty() ? "한칸 열기" : "완료 ✓")
+            completed ? "✓ 오늘 완료" : (task.isEmpty() ? "딱하나 열기" : "완료 ✓")
         );
 
         Intent open = new Intent(context, MainActivity.class);

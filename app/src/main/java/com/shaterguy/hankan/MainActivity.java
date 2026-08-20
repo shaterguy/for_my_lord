@@ -3,13 +3,18 @@ package com.shaterguy.hankan;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
@@ -26,12 +31,17 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 public class MainActivity extends Activity {
     private static final DateTimeFormatter HEADER_DATE =
         DateTimeFormatter.ofPattern("M월 d일 EEEE", Locale.KOREAN);
     private static final DateTimeFormatter RECORD_DATE =
         DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN);
+    private static final String STATE_RECORDS_TAB = "records_tab";
+    private static final String STATE_EDIT_TASK = "edit_task";
+    private static final String STATE_TASK_DRAFT = "task_draft";
+    private static final String STATE_NOTE_DRAFT = "note_draft";
 
     private final String[] familyIdeas = {
         "각자 오늘 가장 웃겼던 일을 하나씩 말해보기",
@@ -53,6 +63,8 @@ public class MainActivity extends Activity {
     private TextView timerText;
     private boolean recordsTab;
     private boolean editTask;
+    private String taskDraft;
+    private String noteDraft;
 
     private int background;
     private int card;
@@ -71,7 +83,22 @@ public class MainActivity extends Activity {
         loadColors();
         applySystemBars();
         store = new HankanStore(this);
+        if (state != null) {
+            recordsTab = state.getBoolean(STATE_RECORDS_TAB, false);
+            editTask = state.getBoolean(STATE_EDIT_TASK, false);
+            taskDraft = state.getString(STATE_TASK_DRAFT);
+            noteDraft = state.getString(STATE_NOTE_DRAFT);
+        }
         render();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        outState.putBoolean(STATE_RECORDS_TAB, recordsTab);
+        outState.putBoolean(STATE_EDIT_TASK, editTask);
+        if (taskDraft != null) outState.putString(STATE_TASK_DRAFT, taskDraft);
+        if (noteDraft != null) outState.putString(STATE_NOTE_DRAFT, noteDraft);
+        super.onSaveInstanceState(outState);
     }
 
     @Override
@@ -177,7 +204,7 @@ public class MainActivity extends Activity {
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(titleRow, matchWrap());
 
-        TextView title = text("한칸", 34, ink, true);
+        TextView title = text("딱하나", 34, ink, true);
         titleRow.addView(title, weighted());
 
         TextView streak = text("🔥 " + store.getStreak() + "일 · " + store.getTotalCompleted() + "칸", 14, muted, true);
@@ -203,14 +230,12 @@ public class MainActivity extends Activity {
         today.setOnClickListener(v -> {
             if (!recordsTab) return;
             recordsTab = false;
-            editTask = false;
             render();
         });
         records.setOnClickListener(v -> {
             if (recordsTab) return;
             hideKeyboard();
             recordsTab = true;
-            editTask = false;
             render();
         });
     }
@@ -253,20 +278,23 @@ public class MainActivity extends Activity {
         box.addView(label);
 
         if (task.isEmpty() || editTask) {
+            if (taskDraft == null) taskDraft = task;
             EditText input = input("오늘 이것 하나만 끝내면 됩니다", false);
-            input.setText(task);
+            input.setText(taskDraft);
             input.setSelection(input.length());
+            input.addTextChangedListener(draftWatcher(value -> taskDraft = value));
             box.addView(input, top(10));
 
             Button save = button(task.isEmpty() ? "오늘로 정하기" : "수정 저장", true);
             box.addView(save, top(10));
             save.setOnClickListener(v -> {
-                String value = input.getText().toString().trim();
+                String value = taskDraft == null ? "" : taskDraft.trim();
                 if (value.isEmpty()) {
                     toast("오늘의 한 칸을 적어주세요.");
                     return;
                 }
                 store.setTask(date, value);
+                taskDraft = value;
                 editTask = false;
                 HankanWidgetProvider.updateAll(this);
                 hideKeyboard();
@@ -277,6 +305,7 @@ public class MainActivity extends Activity {
                 Button cancel = button("취소", false);
                 box.addView(cancel, top(8));
                 cancel.setOnClickListener(v -> {
+                    taskDraft = task;
                     editTask = false;
                     hideKeyboard();
                     render();
@@ -304,6 +333,7 @@ public class MainActivity extends Activity {
             Button edit = button("수정", false);
             box.addView(edit, top(8));
             edit.setOnClickListener(v -> {
+                taskDraft = task;
                 editTask = true;
                 render();
             });
@@ -403,15 +433,17 @@ public class MainActivity extends Activity {
         LinearLayout box = card(card);
         box.addView(sectionTitle("생각 보관함"));
 
+        if (noteDraft == null) noteDraft = store.getNote(date);
         EditText note = input("잊기 전에 적어두세요.", true);
-        note.setText(store.getNote(date));
+        note.setText(noteDraft);
         note.setSelection(note.length());
+        note.addTextChangedListener(draftWatcher(value -> noteDraft = value));
         box.addView(note, top(10));
 
         Button save = button("메모 저장", false);
         box.addView(save, top(10));
         save.setOnClickListener(v -> {
-            store.setNote(date, note.getText().toString());
+            store.setNote(date, noteDraft == null ? "" : noteDraft);
             hideKeyboard();
             toast("기기에 저장했습니다.");
             render();
@@ -593,7 +625,7 @@ public class MainActivity extends Activity {
         int count = store.getFocusCount(date);
         int minutes = store.getFocusMinutes(date);
         StringBuilder summary = new StringBuilder();
-        summary.append("한칸 · ").append(LocalDate.now().format(HEADER_DATE)).append('\n');
+        summary.append("딱하나 · ").append(LocalDate.now().format(HEADER_DATE)).append('\n');
         summary.append(completed ? "✓ " : "• ");
         summary.append(task.isEmpty() ? "오늘의 한 칸은 아직 비어 있습니다." : task).append('\n');
         summary.append("집중 ").append(count).append("회 · ").append(minutes).append("분");
@@ -643,14 +675,14 @@ public class MainActivity extends Activity {
     private Button tabButton(String label, boolean selected) {
         Button b = button(label, false);
         b.setTextColor(selected ? getColor(R.color.hankan_on_primary) : primary);
-        b.setBackground(roundRect(selected ? primary : Color.TRANSPARENT, dp(13), Color.TRANSPARENT, 0));
+        b.setBackground(interactiveBackground(selected ? primary : Color.TRANSPARENT, dp(13), Color.TRANSPARENT, 0));
         return b;
     }
 
     private Button chip(String label, boolean selected) {
         Button b = button(label, false);
         b.setTextColor(selected ? primary : muted);
-        b.setBackground(roundRect(selected ? primaryContainer : surfaceAlt, dp(13), selected ? primary : outline, dp(1)));
+        b.setBackground(interactiveBackground(selected ? primaryContainer : surfaceAlt, dp(13), selected ? primary : outline, dp(1)));
         return b;
     }
 
@@ -708,7 +740,7 @@ public class MainActivity extends Activity {
         b.setMinimumHeight(dp(48));
         b.setPadding(dp(14), 0, dp(14), 0);
         b.setTextColor(primaryAction ? getColor(R.color.hankan_on_primary) : primary);
-        b.setBackground(roundRect(primaryAction ? primary : primaryContainer, dp(14), Color.TRANSPARENT, 0));
+        b.setBackground(interactiveBackground(primaryAction ? primary : primaryContainer, dp(14), Color.TRANSPARENT, 0));
         return b;
     }
 
@@ -718,6 +750,21 @@ public class MainActivity extends Activity {
         bg.setCornerRadius(radius);
         if (strokeWidth > 0) bg.setStroke(strokeWidth, stroke);
         return bg;
+    }
+
+    private Drawable interactiveBackground(int fill, int radius, int stroke, int strokeWidth) {
+        GradientDrawable content = roundRect(fill, radius, stroke, strokeWidth);
+        GradientDrawable mask = roundRect(Color.WHITE, radius, Color.TRANSPARENT, 0);
+        int ripple = Color.argb(44, Color.red(primary), Color.green(primary), Color.blue(primary));
+        return new RippleDrawable(ColorStateList.valueOf(ripple), content, mask);
+    }
+
+    private TextWatcher draftWatcher(Consumer<String> onChange) {
+        return new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { onChange.accept(s.toString()); }
+            @Override public void afterTextChanged(Editable s) {}
+        };
     }
 
     private LinearLayout column() {
