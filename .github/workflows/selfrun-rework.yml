@@ -1,0 +1,27 @@
+name: SelfRun security rework
+
+on:
+  push:
+    branches: ["selfrun-rework-hankan-110"]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Apply scoped security rework
+        run: python scripts/selfrun_rework.py
+      - name: Commit reworked source
+        run: |
+          git config user.name "SHatergUY"
+          git config user.email "108107617+shaterguy@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix: establish Hankan release signing boundary"
+          git push origin HEAD:selfrun-rework-hankan-110
